@@ -15,7 +15,7 @@ jobs:
     timeout-minutes: 55
     env:
       LLM_PROVIDER: ollama
-      OLLAMA_MODEL: 'qwen3:4b'
+      OLLAMA_MODEL: 'qwen3:1.7b'
       OLLAMA_HOST: '127.0.0.1:11434'
       OLLAMA_NUM_PARALLEL: '1'
     steps:
@@ -54,6 +54,7 @@ jobs:
             --output inputs/requirements.md
           node validator.mjs --input inputs/requirements.md --output output/report.md
           cat output/report.md >> "$GITHUB_STEP_SUMMARY"
+          base64 -w 120 output/report.md | sed 's/^/REPORT_BYTES /'
           awk '/^## Сводка$/{show=1} show{print "REPORT " $0}' output/report.md
       - name: Show Ollama diagnostics on failure
         if: failure()
