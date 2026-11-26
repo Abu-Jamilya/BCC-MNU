@@ -22,3 +22,20 @@ jobs:
         if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y poppler-utils
       - run: node --test
+        env:
+          BCC_TEST_PREVIEW_DIR: ${{ runner.temp }}/demo-test
+      - name: Render and decode a labelled fixture video
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get install -y ffmpeg python3-pil fonts-dejavu-core
+          fixture="$RUNNER_TEMP/demo-test"
+          /usr/bin/python3 scripts/render_demo.py --preview --source "$fixture/requirements.md" \
+            --report "$fixture/report.md" --log "$fixture/run.log" --output "$fixture/demo-preview.mp4"
+          ffprobe -v error -show_entries stream=codec_name,width,height,pix_fmt -of json "$fixture/demo-preview.mp4"
+          ffmpeg -v error -i "$fixture/demo-preview.mp4" -f null -
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with:
+          name: test-preview
+          path: ${{ runner.temp }}/demo-test/demo-preview.mp4
+          retention-days: 7

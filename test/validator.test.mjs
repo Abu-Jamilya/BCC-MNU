@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -34,7 +34,8 @@ const conflict = {
   severity: 'critical',
   title: 'Повторная отправка после смены порога',
   explanation: 'Правила дают два разных результата в одном месяце.',
-  recommendation: 'Определить приоритет правила однократной отправки.',
+  recommendation: 'Допускается ли второй push в том же месяце после смены порога?',
+  acceptance_check: 'После первого push изменить порог и снова его достичь. Сверить число push за месяц с ответом владельца.',
   line_ids: ['L3', 'L4'],
 };
 
@@ -64,7 +65,7 @@ test('реальная точка входа обрабатывает --help б�
 
 test('CLI сохраняет отчёт после трёх ответов Gemini, цитаты берутся из файла', async context => {
   const directory = tempDirectory(context);
-  const input = join(directory, 'input.md');
+  const input = join(directory, 'requirements.md');
   const output = join(directory, 'output', 'report.md');
   writeFileSync(input, source);
   replaceEnvironment(context, { LLM_PROVIDER: 'gemini', GEMINI_API_KEY: 'test-only-key', GEMINI_MODEL: 'test-model' });
@@ -81,7 +82,8 @@ test('CLI сохраняет отчёт после трёх ответов Gemin
     }] }) };
   });
 
-  await run(['--input', input, '--output', output], () => {});
+  const log = [];
+  await run(['--input', input, '--output', output], message => log.push(message));
   assert.equal(mockFetch.mock.callCount(), 3);
   const report = readFileSync(output, 'utf8');
   assert.match(report, /R001 \| Ф-1/u);
@@ -90,7 +92,16 @@ test('CLI сохраняет отчёт после трёх ответов Gemin
   assert.match(report, /\*\*строка 3\*\*.*Только одно уведомление/u);
   assert.match(report, /\*\*строка 4\*\*.*уведомление отправляется снова/u);
   assert.match(report, /SHA-256 файла \| `[a-f0-9]{64}`/u);
+  assert.ok(report.indexOf('## Первые вопросы') < report.indexOf('## Каталог требований'));
+  assert.ok(report.includes(conflict.acceptance_check));
   assert.doesNotMatch(report, /test-only-key/u);
+  if (process.env.BCC_TEST_PREVIEW_DIR) {
+    const preview = process.env.BCC_TEST_PREVIEW_DIR;
+    mkdirSync(preview, { recursive: true });
+    writeFileSync(join(preview, 'requirements.md'), source);
+    writeFileSync(join(preview, 'report.md'), report);
+    writeFileSync(join(preview, 'run.log'), log.join('\n'));
+  }
 });
 
 test('источник нельзя перезаписать отчётом', async context => {
@@ -121,6 +132,14 @@ test('ответ без обзора одного из требований ил
     },
   };
   await assert.rejects(reviewDocument(document, invented), /существующие ссылки/u);
+  const statement = {
+    async generate(stage) {
+      if (stage === 'catalog') return catalog;
+      if (stage === 'item_review') return individual;
+      return { findings: [{ ...conflict, recommendation: 'Уточнить правила.' }] };
+    },
+  };
+  await assert.rejects(reviewDocument(document, statement), /вопрос владельцу/u);
 });
 
 test('OpenAI получает строгую схему и возвращает разобранный JSON', async context => {

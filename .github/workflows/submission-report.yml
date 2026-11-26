@@ -30,17 +30,35 @@ jobs:
           curl --fail --silent --show-error --location --retry 3 \
             'https://raw.githubusercontent.com/BCC-HUB/ai-requirements-validator-task/928c1aa364265426105b69ba7a3444eac11b22db/docs/requirements.md' \
             --output inputs/requirements.md
+          echo 'e7dae55e5453a250d93e335f5ff9c7f775f4457ccddd333f4a67e47b20d74381  inputs/requirements.md' | sha256sum --check
       - name: Generate the report
         env:
           LLM_PROVIDER: ${{ inputs.provider }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
         run: |
-          node validator.mjs --input inputs/requirements.md --output output/report.md
+          mkdir -p output
+          set -o pipefail
+          node validator.mjs --input inputs/requirements.md --output output/report.md 2>&1 | tee output/run.log
           cat output/report.md >> "$GITHUB_STEP_SUMMARY"
       - uses: actions/upload-artifact@v4
         with:
           name: BCC-MNU-submission-report
-          path: output/report.md
+          path: |
+            output/report.md
+            inputs/requirements.md
+          if-no-files-found: error
+          retention-days: 30
+      - name: Build the demonstration from this run
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ffmpeg python3-pil fonts-dejavu-core
+          /usr/bin/python3 scripts/render_demo.py --source inputs/requirements.md --report output/report.md \
+            --log output/run.log --output output/demo.mp4
+          ffmpeg -v error -i output/demo.mp4 -f null -
+      - uses: actions/upload-artifact@v4
+        with:
+          name: BCC-MNU-demo
+          path: output/demo.mp4
           if-no-files-found: error
           retention-days: 30

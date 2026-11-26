@@ -4,6 +4,7 @@ const SOURCE_ID = /^(?:[-*+]\s+)?(?:\*\*|__|`)?([\p{Lu}]{1,12}[-_–]\d+(?:[.\-]
 
 const EVIDENCE_RULES = `
 Для каждого замечания назови конкретную проблему, опиши её последствие для разработки или проверки и предложи, что нужно уточнить. Не делай бизнес-выбор за автора. В line_ids перечисляй идентификаторы релевантных строк, переданных в запросе. Для пробела укажи ближайший пункт, который должен его закрывать, и точно опиши недостающее условие. Для противоречия приведи обе стороны. Одна проблема — одно замечание.
+В recommendation задай владельцу продукта один конкретный вопрос по-русски с вопросительным знаком в конце. В acceptance_check предложи наблюдаемую проверку, которая станет возможна после ответа: начальное условие, действие и что сравнить с согласованным решением. Если допустимы разные исходы, оставь выбор владельцу. Не вводи отсутствующие в источнике нормативы.
 Критический (critical) — нельзя однозначно реализовать или принять важный сценарий. Существенный (major) — проблема влияет на важный сценарий или его проверку, но не создаёт прямой блокировки. Незначительный (minor) — локальная проблема формулировки с ограниченным влиянием. Не повышай серьёзность из-за стиля текста.`;
 
 const CATALOG_PROMPT = `
@@ -28,6 +29,12 @@ function checkedLines(ids, document, minimum = 1) {
     throw new InvalidModelOutput(`Нужны как минимум ${minimum} различные существующие ссылки на исходные строки.`);
   }
   return unique;
+}
+
+function checkQuestion(finding) {
+  if (!finding.recommendation.trimEnd().endsWith('?')) {
+    throw new InvalidModelOutput('Поле recommendation должно содержать вопрос владельцу продукта и оканчиваться знаком вопроса.');
+  }
 }
 
 function prepareCatalog(data, document) {
@@ -68,6 +75,7 @@ function prepareItemReviews(data, catalog, document) {
   }
   for (const item of catalog) {
     for (const finding of reviews.get(item.id)) {
+      checkQuestion(finding);
       finding.line_ids = checkedLines(finding.line_ids, document);
       if (!finding.line_ids.some(id => item.line_ids.includes(id))) {
         throw new InvalidModelOutput(`Замечание по ${item.id} должно цитировать строку этого требования.`);
@@ -78,10 +86,10 @@ function prepareItemReviews(data, catalog, document) {
 }
 
 function prepareSetFindings(data, document) {
-  return data.findings.map(finding => ({
-    ...finding,
-    line_ids: checkedLines(finding.line_ids, document, finding.criterion === 'consistency' ? 2 : 1),
-  }));
+  return data.findings.map(finding => {
+    checkQuestion(finding);
+    return { ...finding, line_ids: checkedLines(finding.line_ids, document, finding.criterion === 'consistency' ? 2 : 1) };
+  });
 }
 
 async function runStage(model, stage, instruction, input, schema, prepare) {

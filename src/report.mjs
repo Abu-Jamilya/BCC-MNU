@@ -16,6 +16,8 @@ function references(document, ids) {
 
 function renderFinding(output, document, finding, criteria) {
   output.push(
+    `<a id="${finding.id}"></a>`,
+    '',
     `**${finding.id} · ${plain(finding.title)}**`,
     '',
     `${SEVERITIES[finding.severity]} · ${criteria[finding.criterion]}`,
@@ -23,6 +25,8 @@ function renderFinding(output, document, finding, criteria) {
     plain(finding.explanation),
     '',
     `**Что уточнить** · ${plain(finding.recommendation)}`,
+    '',
+    `**Проверка после ответа** · ${plain(finding.acceptance_check)}`,
     '',
     '**Свидетельства в документе**',
     '',
@@ -40,7 +44,7 @@ export function renderReport(document, model, review, { version, timestamp, fing
   }
   const itemFindings = new Map(review.catalog.map(item => [item.id, review.reviews.get(item.id).map(numberFinding)]));
   const setFindings = review.setFindings.map(numberFinding);
-  const findings = [...[...itemFindings.values()].flat(), ...setFindings];
+  const findings = [...setFindings, ...[...itemFindings.values()].flat()];
   const prioritized = Object.keys(SEVERITIES).flatMap(severity => findings.filter(finding => finding.severity === severity));
   const critical = prioritized.filter(finding => finding.severity === 'critical');
   const affected = [...itemFindings.values()].filter(items => items.length).length;
@@ -62,6 +66,15 @@ export function renderReport(document, model, review, { version, timestamp, fing
   ];
   if (document.blankPages.length) {
     output.push(`Из PDF не извлечён текст на страницах ${document.blankPages.join(', ')}. Полнота прогона зависит от того, есть ли на этих страницах требования.`, '');
+  }
+
+  if (prioritized.length) {
+    output.push('## Первые вопросы владельцу продукта', '',
+      'До планирования затронутых сценариев команда может начать с этих вопросов.', '');
+    for (const finding of prioritized.slice(0, 3)) {
+      output.push(`- [${finding.id}](#${finding.id}) · ${plain(finding.recommendation)} (${references(document, finding.line_ids)}).`);
+    }
+    output.push('');
   }
 
   output.push(

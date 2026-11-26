@@ -31,6 +31,7 @@ function issue(criteria) {
     title: string,
     explanation: string,
     recommendation: string,
+    acceptance_check: string,
     line_ids: array(string),
   });
 }
