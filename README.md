@@ -8,7 +8,7 @@
 
 1. Установите [Node.js 22 или новее](https://nodejs.org/). Для PDF на Linux или Windows также нужен `pdftotext` из Poppler в `PATH`. В macOS агент может использовать встроенный PDFKit. Для Markdown и TXT достаточно Node.js, пакетов npm нет.
 2. Из корня репозитория выполните `cp .env.example .env` (в PowerShell — `Copy-Item .env.example .env`). Получите ключ в [Google AI Studio](https://aistudio.google.com/apikey) и заполните `GEMINI_API_KEY` в `.env`. По умолчанию агент обращается к `gemini-3.5-flash-lite`. Параметр `GEMINI_MODEL` можно изменить.
-3. [Скачайте документ организаторов](https://raw.githubusercontent.com/BCC-HUB/ai-requirements-validator-task/main/docs/requirements.md) и сохраните его, например, в `inputs/requirements.md`. Запустите:
+3. [Скачайте документ организаторов](https://raw.githubusercontent.com/BCC-HUB/ai-requirements-validator-task/main/docs/requirements.md) и сохраните его, например, в `inputs/requirements.md`. Выполните следующую команду.
 
 ```bash
 node validator.mjs --input inputs/requirements.md --output output/report.md

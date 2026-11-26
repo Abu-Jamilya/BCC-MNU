@@ -12,7 +12,7 @@ permissions:
 jobs:
   report:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 55
     env:
       LLM_PROVIDER: ollama
       OLLAMA_MODEL: 'qwen3:4b'
@@ -54,6 +54,10 @@ jobs:
             --output inputs/requirements.md
           node validator.mjs --input inputs/requirements.md --output output/report.md
           cat output/report.md >> "$GITHUB_STEP_SUMMARY"
+          awk '/^## Сводка$/{show=1} show{print "REPORT " $0}' output/report.md
+      - name: Show Ollama diagnostics on failure
+        if: failure()
+        run: tail -n 45 "$RUNNER_TEMP/ollama.log"
       - uses: actions/upload-artifact@v4
         with:
           name: BCC-MNU-submission-report
