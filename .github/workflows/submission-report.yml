@@ -1,6 +1,7 @@
 name: Generate submission report
 
 on:
+  create:
   workflow_dispatch:
     inputs:
       provider:
@@ -15,6 +16,10 @@ permissions:
 
 jobs:
   report:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.ref_type == 'branch' &&
+       (startsWith(github.event.ref, 'run-report/gemini-') || startsWith(github.event.ref, 'run-report/openai-')))
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
@@ -33,9 +38,9 @@ jobs:
           echo 'e7dae55e5453a250d93e335f5ff9c7f775f4457ccddd333f4a67e47b20d74381  inputs/requirements.md' | sha256sum --check
       - name: Generate the report
         env:
-          LLM_PROVIDER: ${{ inputs.provider }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
-          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          LLM_PROVIDER: ${{ inputs.provider || (startsWith(github.event.ref, 'run-report/openai-') && 'openai' || 'gemini') }}
+          GEMINI_API_KEY: ${{ (inputs.provider == 'gemini' || startsWith(github.event.ref, 'run-report/gemini-')) && secrets.GEMINI_API_KEY || '' }}
+          OPENAI_API_KEY: ${{ (inputs.provider == 'openai' || startsWith(github.event.ref, 'run-report/openai-')) && secrets.OPENAI_API_KEY || '' }}
         run: |
           mkdir -p output
           set -o pipefail

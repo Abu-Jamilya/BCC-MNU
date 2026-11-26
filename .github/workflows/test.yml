@@ -24,6 +24,10 @@ jobs:
       - run: node --test
         env:
           BCC_TEST_PREVIEW_DIR: ${{ runner.temp }}/demo-test
+      - name: Verify the revision in a source archive
+        shell: bash
+        run: |
+          git archive HEAD validator.mjs | tar -xO validator.mjs | grep -F "const archived = '$GITHUB_SHA';"
       - name: Render and decode a labelled fixture video
         if: runner.os == 'Linux'
         run: |

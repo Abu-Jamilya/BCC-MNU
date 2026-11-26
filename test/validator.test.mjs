@@ -8,6 +8,7 @@ import { test } from 'node:test';
 import { run } from '../validator.mjs';
 import { readDocument, indexDocument } from '../src/document.mjs';
 import { createModel } from '../src/model.mjs';
+import { renderReport } from '../src/report.mjs';
 import { reviewDocument } from '../src/review.mjs';
 
 const source = [
@@ -109,6 +110,20 @@ test('источник нельзя перезаписать отчётом', as
   writeFileSync(file, source);
   await assert.rejects(run(['-i', file, '-o', file], () => {}), /должны различаться/u);
   assert.equal(readFileSync(file, 'utf8'), source);
+});
+
+test('чистый прогон не создаёт вопросов или критических дефектов', async () => {
+  const document = indexDocument('input.md', [source], false);
+  const model = { name: 'fixture', provider: 'test', async generate(stage) {
+    if (stage === 'catalog') return catalog;
+    if (stage === 'item_review') return individual;
+    return { findings: [] };
+  } };
+  const results = await reviewDocument(document, model);
+  const report = renderReport(document, model, results, { version: 'fixture', timestamp: 'fixture', fingerprint: 'fixture' });
+  assert.match(report, /Нарушений — \*\*0\*\*/u);
+  assert.doesNotMatch(report, /## Первые вопросы|<a id="D/u);
+  assert.match(report, /можно начинать работу/u);
 });
 
 test('ответ без обзора одного из требований или с выдуманной строкой отклоняется', async () => {

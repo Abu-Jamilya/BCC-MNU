@@ -19,6 +19,11 @@ def readable(markdown):
     return html.unescape(text)
 
 
+def source_excerpt(text):
+    text = re.sub(r"^[-*+]\s+", "", text)
+    return re.sub(r"(\*\*|`)(.+?)\1", r"\2", text)
+
+
 def run_details(report, source, log):
     def match(pattern, text=report):
         result = re.search(pattern, text, flags=re.M)
@@ -42,7 +47,9 @@ def run_details(report, source, log):
     metrics = []
     for label in ("Требований в каталоге", "Нарушений", "Критический уровень"):
         metrics.append(int(match(rf"^- {label} — \*\*(\d+)\*\*")))
-    verdict = match(r"^\*\*(Разработка(?: и тестирование)?\*\* · .+)$").replace("** · ", " · ")
+    verdicts = re.findall(r"^\*\*(Разработка(?: и тестирование)?|Тестирование)\*\* · (.+)$", report, re.M)
+    if not verdicts:
+        raise ValueError("В отчёте отсутствует итог о готовности документа")
     # The report's decision list orders by severity, then favors cross-requirement findings.
     first = re.search(r"^- \[(D\d+)\]\(#\1\)", report, re.M)
     finding = None
@@ -58,12 +65,12 @@ def run_details(report, source, log):
             "title": readable(match(rf"^\*\*{ident} · (.+)\*\*$", block)),
             "question": readable(match(r"^\*\*Что уточнить\*\* · (.+)$", block)),
             "check": readable(match(r"^\*\*Проверка после ответа\*\* · (.+)$", block)),
-            "quotes": [(location, readable(quote)) for location, quote in quotes],
+            "quotes": [(location, source_excerpt(readable(quote))) for location, quote in quotes],
         }
     if bool(metrics[1]) != bool(finding):
         raise ValueError("Количество замечаний не согласуется с очередью вопросов")
     return dict(title=field("Документ"), model=model, date=field("Дата и время (UTC)"),
-                version=field("Версия агента"), stages=stages, metrics=metrics, verdict=verdict, finding=finding)
+                version=field("Версия агента"), stages=stages, metrics=metrics, verdicts=verdicts, finding=finding)
 
 
 def font(size, bold=False, mono=False):
@@ -126,7 +133,7 @@ def render(data, preview):
     img, draw = page("От спецификации к отчёту", data["title"])
     draw.rounded_rectangle((64, 242, 1216, 468), 18, fill=INK)
     paragraph(draw, 92, 269, "Команда прогона", 20, 1060, 1, bold=True, color="#9AE2C5")
-    for i, line in enumerate(("node validator.mjs", "  --input inputs/requirements.md", "  --output output/report.md")):
+    for i, line in enumerate(("node validator.mjs \\", "  --input inputs/requirements.md \\", "  --output output/report.md")):
         draw.text((92, 316 + i * 44), line, font=font(28, mono=True), fill="white", anchor="lt")
     paragraph(draw, 66, 502, "Из журнала запуска", 21, 1100, 1, bold=True, color=GREEN)
     paragraph(draw, 66, 543, "  →  ".join((data["stages"][0], data["stages"][-2], data["stages"][-1])),
@@ -151,7 +158,14 @@ def render(data, preview):
         draw.rounded_rectangle((left, 245, left + 370, 391), 18, fill=INK)
         draw.text((left + 25, 269), str(count), font=font(48, True), fill="white", anchor="lt")
         draw.text((left + 25, 343), label, font=font(23), fill="#A6DFCD", anchor="lt")
-    card(draw, 421, 619, "Итог агента", data["verdict"], size=28, lines=3)
+    if len(data["verdicts"]) == 1:
+        label, verdict = data["verdicts"][0]
+        card(draw, 421, 619, label, verdict, size=28, lines=3)
+    else:
+        for i, (label, verdict) in enumerate(data["verdicts"]):
+            y = 408 + i * 112
+            paragraph(draw, 66, y, label, 20, 1138, 1, color=GREEN, bold=True)
+            paragraph(draw, 66, y + 33, verdict, 25, 1138, 2)
     frames.append((img, 12))
     return frames
 

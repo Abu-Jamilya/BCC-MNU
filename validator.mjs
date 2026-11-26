@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -13,16 +13,21 @@ const projectRoot = fileURLToPath(new URL('.', import.meta.url));
 const usage = 'Использование: node validator.mjs --input <документ.pdf|.md|.txt> --output <отчёт.md>';
 
 function getVersion() {
-  try {
-    return execFileSync('git', ['-C', projectRoot, 'rev-parse', '--verify', 'HEAD'], {
-      encoding: 'utf8',
-      stdio: ['ignore', 'pipe', 'ignore'],
-      timeout: 3_000,
-    }).trim();
-  } catch {
-    const { version } = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8'));
-    return `v${version}`;
+  const archived = '$Format:%H$';
+  if (/^[a-f0-9]{40}$/u.test(archived)) return archived;
+  if (existsSync(join(projectRoot, '.git'))) {
+    try {
+      return execFileSync('git', ['-C', projectRoot, 'rev-parse', '--verify', 'HEAD'], {
+        encoding: 'utf8',
+        stdio: ['ignore', 'pipe', 'ignore'],
+        timeout: 3_000,
+      }).trim();
+    } catch {
+      // A copied checkout may have no accessible Git executable or history.
+    }
   }
+  const { version } = JSON.parse(readFileSync(join(projectRoot, 'package.json'), 'utf8'));
+  return `пакет ${version} (коммит неизвестен)`;
 }
 
 function fileFingerprint(path) {
